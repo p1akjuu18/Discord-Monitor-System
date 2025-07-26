@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>币安实时价格</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        .price-up { color: #28a745; font-weight: bold; transition: color 0.5s; }
+        .price-down { color: #dc3545; font-weight: bold; transition: color 0.5s; }
+        .price-card { border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .last-update { font-size: 0.8rem; color: #666; }
+        body { background-color: #f8f9fa; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .price-table { margin-top: 20px; }
+        .table { box-shadow: 0 0 10px rgba(0,0,0,0.1); background-color: white; }
+        .table th { font-weight: bold; background-color: #f1f1f1; }
+        .table-header { background-color: #343a40; color: white; }
+        .refresh-btn { margin-left: 10px; }
+        .filter-section { 
+            margin-bottom: 15px; 
+            padding: 15px; 
+            background-color: #f1f1f1; 
+            border-radius: 5px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h3>币安实时价格监控</h3>
+                        <div>
+                            <select id="intervalSelect" class="form-select d-inline-block" style="width: 100px;">
+                                <option value="1">1秒</option>
+                                <option value="3" selected>3秒</option>
+                                <option value="5">5秒</option>
+                                <option value="10">10秒</option>
+                            </select>
+                            <button id="startBtn" class="btn btn-success ms-2">开始</button>
+                            <button id="stopBtn" class="btn btn-danger ms-2">停止</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            状态: <span id="statusText">已连接</span> | 
+                            最后更新: <span id="lastUpdate">--</span> |
+                            更新间隔: <span id="currentInterval">3秒</span>
+                        </div>
+                        
+                        <!-- 筛选区域 -->
+                        <div class="filter-section">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">搜索:</span>
+                                        <input type="text" id="symbolFilter" class="form-control" placeholder="输入交易对...">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">价格区间:</span>
+                                        <select id="priceRangeFilter" class="form-select">
+                                            <option value="all">全部</option>
+                                            <option value="0-1000">低于 1000</option>
+                                            <option value="1000-10000">1000 - 10000</option>
+                                            <option value="10000+">10000 以上</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">涨跌幅:</span>
+                                        <select id="changeFilter" class="form-select">
+                                            <option value="all">全部</option>
+                                            <option value="positive">上涨</option>
+                                            <option value="negative">下跌</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive price-table">
+                            <table class="table table-bordered table-hover">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th>交易对</th>
+                                        <th>最新价格</th>
+                                        <th>买入价</th>
+                                        <th>卖出价</th>
+                                        <th>24小时变化</th>
+                                        <th>更新时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="priceTableBody">
+                                    <tr id="BTCUSDT-row" data-symbol="BTCUSDT" data-price="0" data-change="0">
+                                        <td><strong>BTC/USDT</strong></td>
+                                        <td id="BTCUSDT-mid">--</td>
+                                        <td id="BTCUSDT-bid">--</td>
+                                        <td id="BTCUSDT-ask">--</td>
+                                        <td id="BTCUSDT-change">--</td>
+                                        <td id="BTCUSDT-time">--</td>
+                                    </tr>
+                                    <tr id="ETHUSDT-row" data-symbol="ETHUSDT" data-price="0" data-change="0">
+                                        <td><strong>ETH/USDT</strong></td>
+                                        <td id="ETHUSDT-mid">--</td>
+                                        <td id="ETHUSDT-bid">--</td>
+                                        <td id="ETHUSDT-ask">--</td>
+                                        <td id="ETHUSDT-change">--</td>
+                                        <td id="ETHUSDT-time">--</td>
+                                    </tr>
+                                    <tr id="SOLUSDT-row" data-symbol="SOLUSDT" data-price="0" data-change="0">
+                                        <td><strong>SOL/USDT</strong></td>
+                                        <td id="SOLUSDT-mid">--</td>
+                                        <td id="SOLUSDT-bid">--</td>
+                                        <td id="SOLUSDT-ask">--</td>
+                                        <td id="SOLUSDT-change">--</td>
+                                        <td id="SOLUSDT-time">--</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h4>价格历史图表</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="btn-group mb-3">
+                            <button class="btn btn-outline-primary active" data-symbol="BTCUSDT">BTC</button>
+                            <button class="btn btn-outline-primary" data-symbol="ETHUSDT">ETH</button>
+                            <button class="btn btn-outline-primary" data-symbol="SOLUSDT">SOL</button>
+                        </div>
+                        <div style="height: 300px;">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.6.1/dist/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 连接到WebSocket服务器
+            const socket = io();
+            
+            // 存储数据和状态
+            const state = {
+                prices: {
+                    "BTCUSDT": { mid: null, bid: null, ask: null, time: null, history: [], change: null },
+                    "ETHUSDT": { mid: null, bid: null, ask: null, time: null, history: [], change: null },
+                    "SOLUSDT": { mid: null, bid: null, ask: null, time: null, history: [], change: null }
+                },
+                isMonitoring: true,
+                lastUpdate: null,
+                currentChart: null,
+                activeSymbol: "BTCUSDT",
+                filters: {
+                    symbol: "",
+                    priceRange: "all",
+                    change: "all"
+                }
+            };
+            
+            // 更新价格函数
+            function updatePrice(symbol, data) {
+                // 更新价格数据
+                state.prices[symbol].mid = data.mid;
+                state.prices[symbol].bid = data.bid;
+                state.prices[symbol].ask = data.ask;
+                state.prices[symbol].time = data.time || new Date().toLocaleTimeString();
+                state.prices[symbol].change = data.change_24h || 0;
+                
+                // 添加到历史数据
+                state.prices[symbol].history.push({
+                    price: data.mid,
+                    time: data.time || new Date().toLocaleTimeString()
+                });
+                
+                // 限制历史数据长度
+                if (state.prices[symbol].history.length > 100) {
+                    state.prices[symbol].history = state.prices[symbol].history.slice(-100);
+                }
+                
+                // 更新表格中的价格
+                const row = document.getElementById(`${symbol}-row`);
+                const midElement = document.getElementById(`${symbol}-mid`);
+                const bidElement = document.getElementById(`${symbol}-bid`);
+                const askElement = document.getElementById(`${symbol}-ask`);
+                const timeElement = document.getElementById(`${symbol}-time`);
+                const changeElement = document.getElementById(`${symbol}-change`);
+                
+                if (midElement) {
+                    const oldPrice = parseFloat(midElement.textContent);
+                    const newPrice = data.mid;
+                    
+                    midElement.textContent = newPrice.toFixed(2);
+                    bidElement.textContent = data.bid.toFixed(2);
+                    askElement.textContent = data.ask.toFixed(2);
+                    timeElement.textContent = state.prices[symbol].time;
+                    
+                    // 更新数据属性用于筛选
+                    if (row) {
+                        row.setAttribute('data-price', newPrice);
+                        row.setAttribute('data-change', state.prices[symbol].change);
+                    }
+                    
+                    if (changeElement) {
+                        const change = state.prices[symbol].change;
+                        changeElement.textContent = change > 0 ? `+${change}%` : `${change}%`;
+                        changeElement.className = change > 0 ? 'price-up' : (change < 0 ? 'price-down' : '');
+                    }
+                    
+                    // 价格变化视觉效果
+                    if (oldPrice && oldPrice !== newPrice) {
+                        midElement.classList.remove('price-up', 'price-down');
+                        if (newPrice > oldPrice) {
+                            midElement.classList.add('price-up');
+                        } else if (newPrice < oldPrice) {
+                            midElement.classList.add('price-down');
+                        }
+                    }
+                }
+                
+                // 应用筛选
+                applyFilters();
+                
+                // 更新最后更新时间
+                state.lastUpdate = new Date();
+                document.getElementById('lastUpdate').textContent = state.lastUpdate.toLocaleTimeString();
+                
+                // 如果当前活动的图表是这个交易对，更新图表
+                if (state.activeSymbol === symbol) {
+                    updateChart(symbol);
+                }
+            }
+            
+            // 应用筛选函数
+            function applyFilters() {
+                // 获取所有交易对行
+                const rows = document.querySelectorAll('#priceTableBody tr');
+                
+                rows.forEach(row => {
+                    const symbol = row.getAttribute('data-symbol');
+                    const price = parseFloat(row.getAttribute('data-price')) || 0;
+                    const change = parseFloat(row.getAttribute('data-change')) || 0;
+                    
+                    let showSymbol = true;
+                    let showPrice = true;
+                    let showChange = true;
+                    
+                    // 应用交易对筛选
+                    if (state.filters.symbol && !symbol.toLowerCase().includes(state.filters.symbol.toLowerCase())) {
+                        showSymbol = false;
+                    }
+                    
+                    // 应用价格区间筛选
+                    if (state.filters.priceRange !== 'all' && price) {
+                        if (state.filters.priceRange === '0-1000' && price >= 1000) {
+                            showPrice = false;
+                        } else if (state.filters.priceRange === '1000-10000' && (price < 1000 || price >= 10000)) {
+                            showPrice = false;
+                        } else if (state.filters.priceRange === '10000+' && price < 10000) {
+                            showPrice = false;
+                        }
+                    }
+                    
+                    // 应用涨跌幅筛选
+                    if (state.filters.change !== 'all') {
+                        if (state.filters.change === 'positive' && change <= 0) {
+                            showChange = false;
+                        } else if (state.filters.change === 'negative' && change >= 0) {
+                            showChange = false;
+                        }
+                    }
+                    
+                    // 显示或隐藏行
+                    row.style.display = (showSymbol && showPrice && showChange) ? '' : 'none';
+                });
+            }
+            
+            // 初始化图表
+            function initChart(symbol) {
+                if (state.currentChart) {
+                    state.currentChart.destroy();
+                }
+                
+                const ctx = document.getElementById('priceChart').getContext('2d');
+                state.currentChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: state.prices[symbol].history.map(data => data.time),
+                        datasets: [{
+                            label: `${symbol.replace('USDT', '')} 价格`,
+                            data: state.prices[symbol].history.map(data => data.price),
+                            borderColor: getChartColor(symbol),
+                            borderWidth: 2,
+                            tension: 0.1,
+                            fill: false,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // 更新图表
+            function updateChart(symbol) {
+                if (!state.currentChart) {
+                    initChart(symbol);
+                    return;
+                }
+                
+                state.currentChart.data.labels = state.prices[symbol].history.map(data => data.time);
+                state.currentChart.data.datasets[0].data = state.prices[symbol].history.map(data => data.price);
+                state.currentChart.data.datasets[0].label = `${symbol.replace('USDT', '')} 价格`;
+                state.currentChart.data.datasets[0].borderColor = getChartColor(symbol);
+                state.currentChart.update();
+            }
+            
+            // 获取不同交易对的图表颜色
+            function getChartColor(symbol) {
+                const colors = {
+                    "BTCUSDT": 'rgb(247, 147, 26)',
+                    "ETHUSDT": 'rgb(114, 110, 193)',
+                    "SOLUSDT": 'rgb(20, 155, 252)'
+                };
+                return colors[symbol] || 'rgb(54, 162, 235)';
+            }
+            
+            // 图表按钮事件
+            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // 更新活动状态
+                    document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // 更新图表
+                    const symbol = this.dataset.symbol;
+                    state.activeSymbol = symbol;
+                    updateChart(symbol);
+                });
+            });
+            
+            // 筛选事件监听
+            document.getElementById('symbolFilter').addEventListener('input', function() {
+                state.filters.symbol = this.value.trim();
+                applyFilters();
+            });
+            
+            document.getElementById('priceRangeFilter').addEventListener('change', function() {
+                state.filters.priceRange = this.value;
+                applyFilters();
+            });
+            
+            document.getElementById('changeFilter').addEventListener('change', function() {
+                state.filters.change = this.value;
+                applyFilters();
+            });
+            
+            // 监听WebSocket事件
+            socket.on('connect', function() {
+                console.log('已连接到服务器');
+                document.getElementById('statusText').textContent = '已连接';
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('与服务器断开连接');
+                document.getElementById('statusText').textContent = '已断开连接';
+                state.isMonitoring = false;
+            });
+            
+            socket.on('price_update', function(data) {
+                const symbol = data.symbol;
+                updatePrice(symbol, data);
+            });
+            
+            socket.on('all_prices', function(data) {
+                data.prices.forEach(price => {
+                    updatePrice(price.symbol, price);
+                });
+            });
+            
+            socket.on('monitoring_status', function(data) {
+                state.isMonitoring = data.is_monitoring;
+                document.getElementById('statusText').textContent = state.isMonitoring ? '正在监控' : '已停止';
+                document.getElementById('startBtn').disabled = state.isMonitoring;
+                document.getElementById('stopBtn').disabled = !state.isMonitoring;
+            });
+            
+            // 控制按钮事件
+            document.getElementById('startBtn').addEventListener('click', function() {
+                socket.emit('start_monitoring');
+            });
+            
+            document.getElementById('stopBtn').addEventListener('click', function() {
+                socket.emit('stop_monitoring');
+            });
+            
+            document.getElementById('intervalSelect').addEventListener('change', function() {
+                const interval = parseInt(this.value);
+                socket.emit('set_interval', { interval: interval });
+                document.getElementById('currentInterval').textContent = interval + '秒';
+            });
+            
+            // 初始化图表
+            initChart("BTCUSDT");
+        });
+    </script>
+</body>
+</html>
