@@ -213,7 +213,7 @@ class MessageFileHandler(FileSystemEventHandler):
             traceback.print_exc()
         finally:
             self.current_processing_file = None
-            self.processing_lock.release()
+
     
     def _cleanup_old_logs(self, emergency=False):
         """清理旧日志文件"""
@@ -369,6 +369,7 @@ class MessageFileHandler(FileSystemEventHandler):
                         if message_id:
                             self.processed_message_ids.add(message_id)
                         self.processed_content_hashes.add(content_hash)
+
             
             # 处理API分析结果
             if result:
@@ -432,7 +433,7 @@ class MessageFileHandler(FileSystemEventHandler):
                 self.processed_message_ids.add(message_id)
             if 'content_hash' in locals() and content_hash:
                 self.processed_content_hashes.add(content_hash)
-    
+
     def _save_json_result(self, enriched_result, output_dir, channel_name):
         """保存JSON结果到文件"""
         try:
@@ -2092,7 +2093,7 @@ class HistoricalMessageAnalyzer:
                     preview = f"**原文:**{original[:15]}..." if len(original) > 15 else original
                     preview += f" **翻译:**{translated[:15]}..." if translated and len(translated) > 15 else f" **翻译:**{translated}"
                     logger.warning(f"消息内容太短或为空，跳过分析 [ID:{msg_id}]: {preview}")
-                    return None
+
             
             # 首先尝试使用正则表达式提取基本信息
             try:
@@ -2131,13 +2132,6 @@ class HistoricalMessageAnalyzer:
             # 准备API请求消息
             messages = [{"role": "user", "content": enhanced_prompt.format(content=content_to_analyze)}]
             
-            # API调用部分的错误处理在调用方法里处理
-            
-            return self._call_api_with_retry(messages, content_to_analyze, original, translated, extracted_info, channel_name, retry_count)
-        
-        except Exception as e:
-            logger.error(f"分析消息时发生未捕获的异常: {str(e)}")
-            logger.error(f"消息内容: {content[:100]}...")
             traceback.print_exc()
             return None
     
