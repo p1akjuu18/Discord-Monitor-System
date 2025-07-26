@@ -213,10 +213,7 @@ class MessageFileHandler(FileSystemEventHandler):
             traceback.print_exc()
         finally:
             self.current_processing_file = None
-            try:
-                self.processing_lock.release()
-            except RuntimeError:
-                logger.warning("尝试释放未锁定的锁，这可能是由于并发问题导致的")
+
     
     def _cleanup_old_logs(self, emergency=False):
         """清理旧日志文件"""
@@ -372,7 +369,7 @@ class MessageFileHandler(FileSystemEventHandler):
                         if message_id:
                             self.processed_message_ids.add(message_id)
                         self.processed_content_hashes.add(content_hash)
-                        return  # 添加return语句，确保在失败时退出
+
             
             # 处理API分析结果
             if result:
@@ -436,12 +433,7 @@ class MessageFileHandler(FileSystemEventHandler):
                 self.processed_message_ids.add(message_id)
             if 'content_hash' in locals() and content_hash:
                 self.processed_content_hashes.add(content_hash)
-        finally:
-            # 确保在处理完成后清理状态
-            self.current_processing_file = None
-            if hasattr(self, 'processing_lock') and self.processing_lock.locked():
-                self.processing_lock.release()
-    
+
     def _save_json_result(self, enriched_result, output_dir, channel_name):
         """保存JSON结果到文件"""
         try:
@@ -733,7 +725,6 @@ class MessageFileHandler(FileSystemEventHandler):
 
 class HistoricalMessageAnalyzer:
     def __init__(self, api_key: str):
-        """初始化分析器"""
         self.api_key = api_key
         self.base_url = "https://api.siliconflow.cn/v1"
         self.headers = {
@@ -743,9 +734,6 @@ class HistoricalMessageAnalyzer:
         
         # 配置具有重试机制的HTTP会话
         self.session = self._create_retry_session()
-        
-        # 添加消息ID追踪集合
-        self.processed_message_ids = set()
         
         # 默认分析提示词
         self.default_prompt = """
@@ -2068,11 +2056,6 @@ class HistoricalMessageAnalyzer:
             # 生成一个唯一的消息标识（对于太短消息的日志记录）
             msg_id = hashlib.md5((original + (translated or "")).encode('utf-8')).hexdigest()[:8]
             
-            # 检查是否已经处理过这个消息
-            if msg_id in self.processed_message_ids:
-                logger.info(f"消息 [ID:{msg_id}] 已处理过，跳过")
-                return None
-                
             # 特殊处理回复类消息（以"回复："或">"开头的消息）
             is_reply = False
             if "**回复：" in content_to_analyze or content_to_analyze.strip().startswith(">"):
@@ -2110,16 +2093,7 @@ class HistoricalMessageAnalyzer:
                     preview = f"**原文:**{original[:15]}..." if len(original) > 15 else original
                     preview += f" **翻译:**{translated[:15]}..." if translated and len(translated) > 15 else f" **翻译:**{translated}"
                     logger.warning(f"消息内容太短或为空，跳过分析 [ID:{msg_id}]: {preview}")
-                    # 将消息ID添加到已处理集合中
-                    self.processed_message_ids.add(msg_id)
-                    return None
-                    
-            # 如果内容仍然为空，直接返回None
-            if not content_to_analyze or len(content_to_analyze.strip()) < min_length:
-                logger.warning(f"增强后的消息内容仍然太短，跳过分析 [ID:{msg_id}]")
-                # 将消息ID添加到已处理集合中
-                self.processed_message_ids.add(msg_id)
-                return None
+
             
             # 首先尝试使用正则表达式提取基本信息
             try:
@@ -2158,17 +2132,6 @@ class HistoricalMessageAnalyzer:
             # 准备API请求消息
             messages = [{"role": "user", "content": enhanced_prompt.format(content=content_to_analyze)}]
             
-            # 调用API进行分析
-            result = self._call_api_with_retry(messages, content_to_analyze, original, translated, extracted_info, channel_name, retry_count)
-            
-            # 如果分析成功，将消息ID添加到已处理集合中
-            if result:
-                self.processed_message_ids.add(msg_id)
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"分析消息时发生未捕获异常: {str(e)}")
             traceback.print_exc()
             return None
     
